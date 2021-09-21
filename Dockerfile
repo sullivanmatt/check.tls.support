@@ -16,9 +16,9 @@ VOLUME "/secrets"
 
 RUN mkdir -p /secrets/ && mv /config/development_cert.pem /secrets/tls.crt && mv /config/development_key.pem /secrets/tls.key
 RUN chown -R www-data /go/src/github.com/sullivanmatt/howsmyssl && chown -R www-data /secrets
-RUN setcap cap_net_bind_service=+ep bin/howsmyssl
+#RUN setcap cap_net_bind_service=+ep bin/howsmyssl
 
-USER www-data
+#USER www-data
 
 CMD ["/bin/bash", "-c", "aws s3 cp s3://tls-support-prod/tls.support.cert /secrets/tls.crt && aws s3 cp s3://tls-support-prod/tls.support.key /secrets/tls.key; \
     howsmyssl \
