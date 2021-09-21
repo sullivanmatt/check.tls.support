@@ -17,7 +17,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"internal/cpu"
 	"io"
 	"net"
 	"runtime"
@@ -25,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"github.com/sullivanmatt/howsmyssl/tls110/cpu"
 )
 
 const (
@@ -275,6 +275,14 @@ type ConnectionState struct {
 	// to a connection. See the Security Considerations sections of RFC 5705 and
 	// RFC 7627, and https://mitls.org/pages/attacks/3SHAKE#channelbindings.
 	TLSUnique []byte
+
+	// Added for howsmyssl's use
+	ClientCipherSuites               []uint16
+	CompressionMethods               []uint8
+	NMinusOneRecordSplittingDetected bool
+	AbleToDetectNMinusOneSplitting   bool
+	SessionTicketsSupported          bool
+	SupportedVersions                []uint16
 
 	// ekm is a closure exposed via ExportKeyingMaterial.
 	ekm func(label string, context []byte, length int) ([]byte, error)
