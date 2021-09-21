@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tls "github.com/jmhodges/howsmyssl/tls110"
+	tls "github.com/sullivanmatt/howsmyssl/tls110"
 )
 
 type rating string
@@ -51,7 +51,8 @@ var actualSupportedVersions = map[uint16]string{
 	tls.VersionTLS10:    "TLS 1.0",
 	tls.VersionTLS11:    "TLS 1.1",
 	tls.VersionTLS12:    "TLS 1.2",
-	versionTLS13:        "TLS 1.3", // TODO(#119): use crypto/tls's constant when it has it
+	//versionTLS13:        "TLS 1.3", // TODO(#119): use crypto/tls's constant when it has it
+	tls.VersionTLS13:    "TLS 1.3",
 	versionTLS13Draft18: "TLS 1.3",
 	versionTLS13Draft21: "TLS 1.3",
 	versionTLS13Draft22: "TLS 1.3",

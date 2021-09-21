@@ -2,21 +2,9 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>About &middot; How's My SSL?</title>
+    <title>About &middot; What TLS versions and ciphers do I support?</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-
-    <script>
-     (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-         (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-                              m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-     })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-     ga('create', 'UA-46659537-1', 'howsmyssl.com');
-     ga('send', 'pageview');
-
-    </script>
-
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 
     <script
@@ -79,7 +67,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="/">How's My SSL?</a>
+          <a class="navbar-brand" href="/">What TLS versions and ciphers do I support?</a>
         </div>
 
         <div id="navbar" class="collapse navbar-collapse">
@@ -98,12 +86,12 @@
           <div class="page-header">
             <h1>About this site</h1>
           </div>
-          <p class="lead">How's My SSL? is a cute little website that
+          <p class="lead">What TLS versions and ciphers do I support? is a cute little website that
             tells you how secure your <a href="#tls-vs-ssl">TLS
             client</a> is. TLS clients just like the browser you're
             reading this with.</p>
 
-          <p>How's My SSL? was originally made to help a web server
+          <p>What TLS versions and ciphers do I support? was originally made to help a web server
             developer learn what real world TLS clients were capable
             of. It's been expanded to give developers and the very
             technically-savvy a quick and easy way to learn more about
@@ -115,17 +103,17 @@
             SSL? is a demonstration of what those TLS client worries
             should be.</p>
 
-          <p>How's My SSL? chooses topics important to today's security
+          <p>What TLS versions and ciphers do I support? chooses topics important to today's security
             environment and analyzes clients in that context. It will
             never be a complete audit, but it can hit the high
-            notes. Over time, How's My SSL? will change to live in an
+            notes. Over time, What TLS versions and ciphers do I support? will change to live in an
             ever more difficult security environment. It will be kept up
             by <a href="#contributing">people who care</a>.</p>
 
           <hr />
 
           <h3 class="fragpadded" id="rating">Rating</h3>
-          <p>How's My SSL? gives a rating to each client that connects to
+          <p>What TLS versions and ciphers do I support? gives a rating to each client that connects to
             it. These ratings are not the final word on "how secure" a TLS
             client is, but captures important aspects of its security.</p>
 
@@ -154,7 +142,7 @@
               <a href="https://en.wikipedia.org/wiki/Transport_Layer_Security#BEAST_attack">BEAST
                 attack</a>.</li>
           </ul>
-          <p>How's My SSL? always selects the worst rating the client could
+          <p>What TLS versions and ciphers do I support? always selects the worst rating the client could
             receive.  That is, clients rated as "Bad" may also have problems
             that, on their own, would have rated them as "Improvable".</p>
 
@@ -283,13 +271,13 @@
             for the rest of the connection.</p>
           <p>A caveat here: Certain TLS libraries, like Java's
             javax.net.ssl, use a slightly different form of 1/n-1 record
-            splitting that is not detectable by How's My SSL? as most
-            requests to How's My SSL? are too small to trigger
+            splitting that is not detectable by What TLS versions and ciphers do I support? as most
+            requests to What TLS versions and ciphers do I support? are too small to trigger
             it. However, these libraries have usually implemented TLS 1.2
             and clients should use it to remove this error.</p>
           <p>If the client supports CBC mode cipher suites on TLS 1.0
             and does not implement the 1/n-1 record splitting mitigation
-            detectable by How's My SSL?, it will be marked
+            detectable by What TLS versions and ciphers do I support?, it will be marked
             as <span class="label bad">Bad</span>.</p>
           <p>Clients using versions of TLS greater than 1.0 or not using
             CBC cipher suites or are using both but also implement 1/n-1

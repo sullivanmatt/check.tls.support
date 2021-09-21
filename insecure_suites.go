@@ -28,7 +28,7 @@ var (
 //   TLS_RSA_EXPORT1024_WITH_RC4_56_SHA      56-bit encryption, export grade
 //   TLS_DHE_DSS_EXPORT1024_WITH_RC4_56_SHA  56-bit encryption, export grade
 //
-// Plus a few more found in https://github.com/jmhodges/howsmyssl/issues/56:
+// Plus a few more found in https://github.com/sullivanmatt/howsmyssl/issues/56:
 //
 //   TLS_RSA_EXPORT1024_WITH_RC4_56_MD5      56-bit encryption, export grade
 //   TLS_RSA_EXPORT1024_WITH_RC2_CBC_56_MD5  56-bit encryption, export grade

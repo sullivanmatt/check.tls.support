@@ -24,11 +24,8 @@ import (
 	"syscall"
 	"time"
 
-	"cloud.google.com/go/logging"
-	"github.com/jmhodges/howsmyssl/gzip"
-	tls "github.com/jmhodges/howsmyssl/tls110"
-	"google.golang.org/api/option"
-	"google.golang.org/grpc"
+	"github.com/sullivanmatt/howsmyssl/gzip"
+	tls "github.com/sullivanmatt/howsmyssl/tls110"
 )
 
 const (
@@ -36,24 +33,23 @@ const (
 Content-Length: 26
 Connection: close
 Content-Type: text/plain; charset="utf-8"
-Strict-Transport-Security: max-age=631138519; includeSubdomains; preload
+Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
 Date: %s
 
 500 Internal Server Error
 `
-	hstsHeaderValue = "max-age=631138519; includeSubdomains; preload"
+	hstsHeaderValue = "max-age=31536000; includeSubdomains; preload"
 	xForwardedProto = "X-Forwarded-Proto"
 )
 
 var (
-	httpsAddr      = flag.String("httpsAddr", "localhost:10443", "address to boot the HTTPS server on")
-	httpAddr       = flag.String("httpAddr", "localhost:10080", "address to boot the HTTP server on")
-	rawVHost       = flag.String("vhost", "localhost:10443", "public domain to use in redirects and templates")
+	httpsAddr      = flag.String("httpsAddr", "localhost:443", "address to boot the HTTPS server on")
+	httpAddr       = flag.String("httpAddr", "localhost:80", "address to boot the HTTP server on")
+	rawVHost       = flag.String("vhost", "localhost:443", "public domain to use in redirects and templates")
 	certPath       = flag.String("cert", "./config/development_cert.pem", "file path to the TLS certificate to serve with")
 	keyPath        = flag.String("key", "./config/development_key.pem", "file path to the TLS key to serve with")
 	acmeURL        = flag.String("acmeRedirect", "/s/", "URL to join with .well-known/acme paths and redirect to")
 	allowListsFile = flag.String("allowListsFile", "", "file path to find the allowlists JSON file")
-	googAcctConf   = flag.String("googAcctConf", "", "file path to a Google service account JSON configuration")
 	allowLogName   = flag.String("allowLogName", "test_howsmyssl_allowance_checks", "the name to Google Cloud Logging log to send API allowance check data to")
 	staticDir      = flag.String("staticDir", "./static", "file path to the directory of static files to serve")
 	tmplDir        = flag.String("templateDir", "./templates", "file path to the directory of templates")
@@ -92,8 +88,6 @@ func main() {
 	expvar.Publish("uptime_dur", expvar.Func(func() interface{} {
 		return time.Now().Sub(t).String()
 	}))
-
-	routeHost, redirectHost := calculateDomains(*rawVHost, *httpsAddr)
 
 	apiVars.Set("requests", apiRequests)
 	staticVars.Set("requests", staticRequests)
@@ -144,25 +138,7 @@ func main() {
 	}
 
 	var gclog logClient
-	if *googAcctConf != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		googConf := loadGoogleServiceAccount(*googAcctConf)
-		client, err := logging.NewClient(ctx,
-			googConf.ProjectID,
-			option.WithCredentialsFile(*googAcctConf),
-			option.WithGRPCDialOption(grpc.WithBlock()),
-		)
-		if err != nil {
-			log.Fatalf("unable to make Google Cloud Logging client: %s", err)
-		}
-		client.OnError = func(err error) {
-			log.Printf("goog logging error: %s", err)
-		}
-		gclog = client.Logger(*allowLogName)
-	} else {
-		gclog = nullLogClient{}
-	}
+	gclog = nullLogClient{}
 	oa := newOriginAllower(ama, hostname, gclog, expvar.NewMap("origins"))
 
 	staticHandler := http.NotFoundHandler()
@@ -174,8 +150,6 @@ func main() {
 	}
 
 	m := tlsMux(
-		routeHost,
-		redirectHost,
 		*acmeURL,
 		staticHandler,
 		webHandleFunc,
@@ -196,7 +170,7 @@ func main() {
 	}
 
 	httpSrv := &http.Server{
-		Handler:      plaintextMux(redirectHost),
+		Handler:      plaintextMux(),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
 	}
@@ -243,73 +217,31 @@ func main() {
 	gclog.Flush()
 }
 
-// Returns routeHost, redirectHost
-func calculateDomains(vhost, httpsAddr string) (string, string) {
-	var routeHost, redirectHost string
-	// Use cases to support:
-	//   * Redirect to non-standard HTTPS port (that is, not 443) that is the same as the port we're booting the HTTPS server on.
-	//   * Redirect to non-standard HTTPS port (not 443) that is not the same as the one the HTTPS server is booted on. (We are behind a proxy, or using a linux container, etc.)
-	//   * Redirect to a host on the standard HTTPS port, 443, without including the port as it might mix up certain clients, or, at least, look uncool.
-	//   * Do all of the above knowing that the host we are booting on with httpsAddr might not be the one we want to use in redirects and templates.
-	if strings.Contains(vhost, ":") {
-		var err error
-		vport := ""
-		// We can drop port in routeHost here because http.ServeMux
-		// doesn't currently know how to match against ports (see
-		// https://golang.org/issue/10463) and we strip ports inside
-		// protoHandler to accommodate that fact. If ServeMux learns
-		// how to handle ports, we can choose to use *rawVHost for it
-		// then.
-		routeHost, vport, err = net.SplitHostPort(vhost)
-		if err != nil {
-			log.Fatalf("unable to parse httpsAddr: %s", err)
-		}
-		if routeHost == "" {
-			routeHost, _, _ = net.SplitHostPort(httpsAddr)
-			if routeHost == "" {
-				routeHost = "localhost"
-			}
-		}
-		// Don't commonRedirect to https://example.com:443, just https://example.com
-		if vport == "443" {
-			redirectHost = routeHost
-		} else {
-			redirectHost = vhost
-		}
-	} else {
-		routeHost = vhost
-		if routeHost == "" {
-			routeHost, _, _ = net.SplitHostPort(httpsAddr)
-			if routeHost == "" {
-				routeHost = "localhost"
-			}
-		}
-		redirectHost = routeHost
-	}
-	return routeHost, redirectHost
-}
-
-func tlsMux(routeHost, redirectHost, acmeRedirectURL string, staticHandler http.Handler, webHandleFunc http.HandlerFunc, oa *originAllower) http.Handler {
+func tlsMux(acmeRedirectURL string, staticHandler http.Handler, webHandleFunc http.HandlerFunc, oa *originAllower) http.Handler {
 	acmeRedirectURL = strings.TrimRight(acmeRedirectURL, "/")
 	m := http.NewServeMux()
-	m.Handle(routeHost+"/s/", staticHandler)
-	m.Handle(routeHost+"/a/check", &apiHandler{oa: oa})
-	m.HandleFunc(routeHost+"/", webHandleFunc)
-	m.HandleFunc(routeHost+"/healthcheck", healthcheck)
-	if routeHost != "" {
-		m.HandleFunc("/healthcheck", healthcheck)
-	}
-	m.Handle(routeHost+"/.well-known/acme-challenge/", acmeRedirect(acmeRedirectURL))
-	if routeHost != "" {
-		m.Handle("/", commonRedirect(redirectHost))
-	}
+	//m.Handle(routeHost+"/s/", staticHandler)
+	//m.Handle(routeHost+"/a/check", &apiHandler{oa: oa})
+	//m.HandleFunc(routeHost+"/", webHandleFunc)
+	//m.HandleFunc(routeHost+"/healthcheck", healthcheck)
+	//if routeHost != "" {
+	//	m.HandleFunc("/healthcheck", healthcheck)
+	//}
+	//m.Handle(routeHost+"/.well-known/acme-challenge/", acmeRedirect(acmeRedirectURL))
+	//if routeHost != "" {
+	//	m.Handle("/", commonRedirect(redirectHost))
+	//}
+	m.Handle("/s/", staticHandler)
+	m.Handle("/a/check", &apiHandler{oa: oa})
+	m.HandleFunc("/", webHandleFunc)
+	m.HandleFunc("/healthcheck", healthcheck)
 	return protoHandler{logHandler{m}, "https"}
 }
 
-func plaintextMux(redirectHost string) http.Handler {
+func plaintextMux() http.Handler {
 	m := http.NewServeMux()
 	m.HandleFunc("/healthcheck", healthcheck)
-	m.Handle("/", commonRedirect(redirectHost))
+	m.Handle("/", commonRedirect())
 	return protoHandler{logHandler{m}, "http"}
 }
 
@@ -466,7 +398,7 @@ func healthcheck(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok"))
 }
 
-func commonRedirect(redirectHost string) http.Handler {
+func commonRedirect() http.Handler {
 	hf := func(w http.ResponseWriter, r *http.Request) {
 		commonRedirects.Add(1)
 		if r.Header.Get(xForwardedProto) == "https" {
@@ -475,7 +407,7 @@ func commonRedirect(redirectHost string) http.Handler {
 		u := r.URL
 		// Never set by the Go HTTP library.
 		u.Scheme = "https"
-		u.Host = redirectHost
+		u.Host = "tls.support"
 		http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
 	}
 	return http.HandlerFunc(hf)
@@ -597,7 +529,7 @@ type protoHandler struct {
 
 func (h protoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Header.Set(xForwardedProto, h.proto)
-	// TODO(jmhodges): gross hack in order to get ServeMux to match ports
+	// TODO(sullivanmatt): gross hack in order to get ServeMux to match ports
 	// See https://golang.org/issue/10463
 	host, _, err := net.SplitHostPort(r.Host)
 	if err == nil {

@@ -1,30 +1,35 @@
-FROM golang:1.16.1
+FROM golang:1.16.8
 
-EXPOSE 10080
-EXPOSE 10443
+EXPOSE 80
+EXPOSE 443
 
 ENV GO111MODULE=on
-ADD . /go/src/github.com/jmhodges/howsmyssl
+RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
+RUN cd /tmp && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && unzip awscliv2.zip && ./aws/install && rm -rf aws
 
-RUN cd /go/src/github.com/jmhodges/howsmyssl && go install -mod=vendor github.com/jmhodges/howsmyssl
+ADD . /go/src/github.com/sullivanmatt/howsmyssl
+ADD config /config
+RUN cd /go/src/github.com/sullivanmatt/howsmyssl && go install -mod=vendor github.com/sullivanmatt/howsmyssl
 
 # Provided by kubernetes secrets or some such
 VOLUME "/secrets"
 
-RUN chown -R www-data /go/src/github.com/jmhodges/howsmyssl
+RUN mkdir -p /secrets/ && mv /config/development_cert.pem /secrets/tls.crt && mv /config/development_key.pem /secrets/tls.key
+RUN chown -R www-data /go/src/github.com/sullivanmatt/howsmyssl && chown -R www-data /secrets
+RUN setcap cap_net_bind_service=+ep bin/howsmyssl
 
 USER www-data
 
-CMD ["/bin/bash", "-c", "howsmyssl \
-    -httpsAddr=:10443 \
-    -httpAddr=:10080 \
-    -adminAddr=:4567 \
-    -templateDir=/go/src/github.com/jmhodges/howsmyssl/templates \
-    -staticDir=/go/src/github.com/jmhodges/howsmyssl/static \
-    -vhost=www.howsmyssl.com \
-    -acmeRedirect=$ACME_REDIRECT_URL \
-    -allowListsFile=/etc/howsmyssl-allowlists/allow_lists.json \
-    -googAcctConf=/secrets/howsmyssl-logging-svc-account/howsmyssl-logging.json \
-    -allowLogName=howsmyssl_allowance_checks \
-    -cert=/secrets/howsmyssl-tls/tls.crt \
-    -key=/secrets/howsmyssl-tls/tls.key"]
+CMD ["/bin/bash", "-c", "aws s3 cp s3://tls-support-prod/tls.support.cert /secrets/tls.crt && aws s3 cp s3://tls-support-prod/tls.support.key /secrets/tls.key; \
+    howsmyssl \
+    -httpsAddr=:443 \
+    -httpAddr=:80 \
+    -templateDir=/go/src/github.com/sullivanmatt/howsmyssl/templates \
+    -staticDir=/go/src/github.com/sullivanmatt/howsmyssl/static \
+    -cert=/secrets/tls.crt \
+    -key=/secrets/tls.key"]
+    #-allowListsFile=/etc/howsmyssl-allowlists/allow_lists.json \
+    #-adminAddr=:4567 \
+    #-vhost=tls.support \
+    #-acmeRedirect=$ACME_REDIRECT_URL \
+    #-allowLogName=howsmyssl_allowance_checks \

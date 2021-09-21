@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	tls110 "github.com/jmhodges/howsmyssl/tls110"
+	tls110 "github.com/sullivanmatt/howsmyssl/tls110"
 )
 
 func TestDumbNilishIndex(t *testing.T) {
@@ -134,21 +134,21 @@ func TestVHostCalculation(t *testing.T) {
 	tests := []vhostTest{
 		vhostTest{
 			rawVHost:             "www.howsmyssl.com",
-			httpsAddr:            "0:10443",
+			httpsAddr:            "0:443",
 			expectedRouteHost:    "www.howsmyssl.com",
 			expectedRedirectHost: "www.howsmyssl.com",
 		},
 		vhostTest{
-			rawVHost:             "localhost:10443",
-			httpsAddr:            "localhost:10443",
+			rawVHost:             "localhost:443",
+			httpsAddr:            "localhost:443",
 			expectedRouteHost:    "localhost",
-			expectedRedirectHost: "localhost:10443",
+			expectedRedirectHost: "localhost:443",
 		},
 		vhostTest{
-			rawVHost:             "example.com:10443",
-			httpsAddr:            "localhost:10443",
+			rawVHost:             "example.com:443",
+			httpsAddr:            "localhost:443",
 			expectedRouteHost:    "example.com",
-			expectedRedirectHost: "example.com:10443",
+			expectedRedirectHost: "example.com:443",
 		},
 		vhostTest{
 			rawVHost:             "example.com:443",

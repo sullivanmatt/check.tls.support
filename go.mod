@@ -1,4 +1,4 @@
-module github.com/jmhodges/howsmyssl
+module github.com/sullivanmatt/howsmyssl
 
 go 1.14
 

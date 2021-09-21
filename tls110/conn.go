@@ -680,7 +680,7 @@ Again:
 	// style BEAST mitigation where the 1 byte record is sent after
 	// the first application record but only if its large enough.
 	//
-	// TODO(jmhodges): check that 1 or 0 byte records are sent between others
+	// TODO(sullivanmatt): check that 1 or 0 byte records are sent between others
 	if !c.readOneAppDataRecord && c.ableToDetectNMinusOneSplitting && want == recordTypeApplicationData {
 		c.readOneAppDataRecord = true
 		c.nMinusOneRecordSplittingDetected = len(data) == 1 || len(data) == 0
