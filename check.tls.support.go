@@ -27,8 +27,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 
-	"github.com/sullivanmatt/howsmyssl/gzip"
-	tls "github.com/sullivanmatt/howsmyssl/tls110"
+	"github.com/sullivanmatt/check.tls.support/gzip"
+	tls "github.com/sullivanmatt/check.tls.support/tls110"
 )
 
 const (

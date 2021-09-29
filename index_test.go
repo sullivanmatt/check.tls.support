@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	tls110 "github.com/sullivanmatt/howsmyssl/tls110"
+	tls110 "github.com/sullivanmatt/check.tls.support/tls110"
 )
 
 func TestDumbNilishIndex(t *testing.T) {

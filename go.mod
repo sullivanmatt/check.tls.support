@@ -1,4 +1,4 @@
-module github.com/sullivanmatt/howsmyssl
+module github.com/sullivanmatt/check.tls.support
 
 go 1.16
 

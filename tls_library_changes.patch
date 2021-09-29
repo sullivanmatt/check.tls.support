@@ -28,7 +28,7 @@ index 646b107..cec4b98 100644
  	"sync"
  	"time"
 +
-+	"github.com/sullivanmatt/howsmyssl/tls110/cipherhw"
++	"github.com/sullivanmatt/check.tls.support/tls110/cipherhw"
  )
  
  const (

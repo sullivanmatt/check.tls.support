@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sullivanmatt/howsmyssl/tls110/cipherhw"
+	"github.com/sullivanmatt/check.tls.support/tls110/cipherhw"
 )
 
 const (
