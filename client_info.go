@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"log"
 
 	tls "github.com/sullivanmatt/howsmyssl/tls110"
 )
@@ -90,6 +91,7 @@ func pullClientInfo(c *conn) *clientInfo {
 	if !st.HandshakeComplete {
 		panic("given a TLS conn that has not completed its handshake")
 	}
+	log.Printf("What is c.handshakeRecord right now: %+v\n", c.handshakeRecord)
 	var sweet32Seen []string
 	for _, ci := range st.ClientCipherSuites {
 		s, found := allCipherSuites[ci]
