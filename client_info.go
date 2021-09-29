@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tls "github.com/sullivanmatt/howsmyssl/tls110"
@@ -10,22 +11,35 @@ import (
 type rating string
 
 const (
-	okay       rating = "Probably Okay"
-	improvable rating = "Improvable"
-	bad        rating = "Bad"
+	good       rating = "excellent"
+	improvable rating = "not bad"
+	bad        rating = "bad"
+)
+
+type rating_score int
+
+const (
+	good_score       rating_score = 10
+	improvable_score rating_score = 5
+	bad_score        rating_score = 0
 )
 
 type clientInfo struct {
-	GivenCipherSuites              []string            `json:"given_cipher_suites"`
+	SupportedCipherSuites          []string            `json:"supported_cipher_suites"`
+	WeakCipherSuites               map[string][]string `json:"weak_cipher_suites"`
+	BrokenCipherSuites             map[string][]string `json:"broken_cipher_suites"`
 	EphemeralKeysSupported         bool                `json:"ephemeral_keys_supported"`             // good if true
 	SessionTicketsSupported        bool                `json:"session_ticket_supported"`             // good if true
 	TLSCompressionSupported        bool                `json:"tls_compression_supported"`            // bad if true
 	UnknownCipherSuiteSupported    bool                `json:"unknown_cipher_suite_supported"`       // bad if true
 	BEASTVuln                      bool                `json:"beast_vuln"`                           // bad if true
 	AbleToDetectNMinusOneSplitting bool                `json:"able_to_detect_n_minus_one_splitting"` // neutral
-	InsecureCipherSuites           map[string][]string `json:"insecure_cipher_suites"`
 	TLSVersion                     string              `json:"tls_version"`
+	TLSVersionFloat                float64             `json:"tls_version_float"`
 	Rating                         rating              `json:"rating"`
+	RatingScore                    rating_score        `json:"rating_score"`
+	//SignatureId                    string              `json:"signature_id"`
+	//Signature                      string              `json:"signature"`
 }
 
 const (
@@ -70,7 +84,7 @@ var actualSupportedVersions = map[uint16]string{
 }
 
 func pullClientInfo(c *conn) *clientInfo {
-	d := &clientInfo{InsecureCipherSuites: make(map[string][]string)}
+	d := &clientInfo{BrokenCipherSuites: make(map[string][]string), WeakCipherSuites: make(map[string][]string)}
 
 	st := c.ConnectionState()
 	if !st.HandshakeComplete {
@@ -83,27 +97,35 @@ func pullClientInfo(c *conn) *clientInfo {
 			if strings.Contains(s, "DHE_") {
 				d.EphemeralKeysSupported = true
 			}
+
+			if strings.Contains(s, "_CBC") {
+				d.WeakCipherSuites[s] = append(d.WeakCipherSuites[s], cbcReason)
+			}
+			if strings.Contains(s, "TLS_RSA_WITH") {
+				d.WeakCipherSuites[s] = append(d.WeakCipherSuites[s], noEphemeralReason)
+			}
+
 			if cbcSuites[ci] && st.Version <= tls.VersionTLS10 {
 				d.BEASTVuln = !st.NMinusOneRecordSplittingDetected
 				d.AbleToDetectNMinusOneSplitting = st.AbleToDetectNMinusOneSplitting
 			}
 			if fewBitCipherSuites[s] {
-				d.InsecureCipherSuites[s] = append(d.InsecureCipherSuites[s], fewBitReason)
+				d.BrokenCipherSuites[s] = append(d.BrokenCipherSuites[s], fewBitReason)
 			}
 			if nullCipherSuites[s] {
-				d.InsecureCipherSuites[s] = append(d.InsecureCipherSuites[s], nullReason)
+				d.BrokenCipherSuites[s] = append(d.BrokenCipherSuites[s], nullReason)
 			}
 			if nullAuthCipherSuites[s] {
-				d.InsecureCipherSuites[s] = append(d.InsecureCipherSuites[s], nullAuthReason)
+				d.BrokenCipherSuites[s] = append(d.BrokenCipherSuites[s], nullAuthReason)
 			}
 			if rc4CipherSuites[s] {
-				d.InsecureCipherSuites[s] = append(d.InsecureCipherSuites[s], rc4Reason)
+				d.BrokenCipherSuites[s] = append(d.BrokenCipherSuites[s], rc4Reason)
 			}
 			if sweet32CipherSuites[s] {
 				sweet32Seen = append(sweet32Seen, s)
 			} else if len(sweet32Seen) != 0 && !metaCipherSuites[ci] && !tls13Suites[ci] {
 				for _, seen := range sweet32Seen {
-					d.InsecureCipherSuites[seen] = append(d.InsecureCipherSuites[seen], sweet32Reason)
+					d.BrokenCipherSuites[seen] = append(d.BrokenCipherSuites[seen], sweet32Reason)
 				}
 				sweet32Seen = []string{}
 			}
@@ -111,13 +133,14 @@ func pullClientInfo(c *conn) *clientInfo {
 			w, found := weirdNSSSuites[ci]
 			if !found {
 				d.UnknownCipherSuiteSupported = true
-				s = fmt.Sprintf("Some unknown cipher suite: %#04x", ci)
+				s = fmt.Sprintf("An unknown cipher suite: %#04x", ci)
 			} else {
 				s = w
-				d.InsecureCipherSuites[s] = append(d.InsecureCipherSuites[s], weirdNSSReason)
+				// The weirdNSSSuites cipher list also has DES encryption, so return the reason as insufficient bits.
+				d.BrokenCipherSuites[s] = append(d.BrokenCipherSuites[s], fewBitReason)
 			}
 		}
-		d.GivenCipherSuites = append(d.GivenCipherSuites, s)
+		d.SupportedCipherSuites = append(d.SupportedCipherSuites, s)
 	}
 	d.SessionTicketsSupported = st.SessionTicketsSupported
 
@@ -141,20 +164,27 @@ func pullClientInfo(c *conn) *clientInfo {
 	}
 	if d.TLSVersion == "" {
 		d.TLSVersion = "an unknown version of SSL/TLS"
+	} else {
+		if s, err := strconv.ParseFloat(d.TLSVersion[4:], 64); err == nil {
+			d.TLSVersionFloat = s
+		}
 	}
 
-	d.Rating = okay
+	d.Rating = good
+	d.RatingScore = good_score
 
-	if !d.EphemeralKeysSupported || vers == tls.VersionTLS11 {
+	if !d.EphemeralKeysSupported || vers == tls.VersionTLS12 || !d.SessionTicketsSupported {
 		d.Rating = improvable
+		d.RatingScore = improvable_score
 	}
 
 	if d.TLSCompressionSupported ||
 		d.UnknownCipherSuiteSupported ||
 		d.BEASTVuln ||
-		len(d.InsecureCipherSuites) != 0 ||
-		vers <= tls.VersionTLS10 {
+		len(d.BrokenCipherSuites) != 0 ||
+		vers <= tls.VersionTLS11 {
 		d.Rating = bad
+		d.RatingScore = bad_score
 	}
 	return d
 }

@@ -23,6 +23,9 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 
 	"github.com/sullivanmatt/howsmyssl/gzip"
 	tls "github.com/sullivanmatt/howsmyssl/tls110"
@@ -55,6 +58,7 @@ var (
 	tmplDir        = flag.String("templateDir", "./templates", "file path to the directory of templates")
 	adminAddr      = flag.String("adminAddr", "localhost:4567", "address to boot the admin server on")
 	headless       = flag.Bool("headless", false, "Run without templates")
+	hmacSecret     = flag.String("hmacSecret", "", "hmac secret (for signatures)")
 
 	apiVars         = expvar.NewMap("api")
 	staticVars      = expvar.NewMap("static")
@@ -92,6 +96,10 @@ func main() {
 	apiVars.Set("requests", apiRequests)
 	staticVars.Set("requests", staticRequests)
 	webVars.Set("requests", webRequests)
+
+	if len(*hmacSecret) == 0 {
+		log.Fatalf("hmacSecret cannot be empty.")
+	}
 
 	tlsConf := makeTLSConfig(*certPath, *keyPath)
 
@@ -220,20 +228,10 @@ func main() {
 func tlsMux(acmeRedirectURL string, staticHandler http.Handler, webHandleFunc http.HandlerFunc, oa *originAllower) http.Handler {
 	acmeRedirectURL = strings.TrimRight(acmeRedirectURL, "/")
 	m := http.NewServeMux()
-	//m.Handle(routeHost+"/s/", staticHandler)
-	//m.Handle(routeHost+"/a/check", &apiHandler{oa: oa})
-	//m.HandleFunc(routeHost+"/", webHandleFunc)
-	//m.HandleFunc(routeHost+"/healthcheck", healthcheck)
-	//if routeHost != "" {
-	//	m.HandleFunc("/healthcheck", healthcheck)
-	//}
-	//m.Handle(routeHost+"/.well-known/acme-challenge/", acmeRedirect(acmeRedirectURL))
-	//if routeHost != "" {
-	//	m.Handle("/", commonRedirect(redirectHost))
-	//}
-	m.Handle("/s/", staticHandler)
-	m.Handle("/a/check", &apiHandler{oa: oa})
-	m.HandleFunc("/", webHandleFunc)
+	//m.Handle("/s/", staticHandler)
+	//m.Handle("/a/check", &apiHandler{oa: oa})
+	//m.HandleFunc("/", webHandleFunc)
+	m.Handle("/", &apiHandler{oa: oa})
 	m.HandleFunc("/healthcheck", healthcheck)
 	return protoHandler{logHandler{m}, "https"}
 }
@@ -247,41 +245,46 @@ func plaintextMux() http.Handler {
 
 const htmlContentType = "text/html;charset=utf-8"
 
-func renderHTML(r *http.Request, data *clientInfo) ([]byte, int, string, error) {
+func renderHTML(r *http.Request, data *clientInfo) ([]byte, int, string, string, error) {
 	b := new(bytes.Buffer)
 	err := index.Execute(b, data)
 	if err != nil {
-		return nil, 0, "", err
+		return nil, 0, "", "", err
 	}
-	return b.Bytes(), http.StatusOK, htmlContentType, nil
+	return b.Bytes(), http.StatusOK, htmlContentType, "", nil
 }
 
-func disallowedRenderJSON(r *http.Request, data *clientInfo) ([]byte, int, string, error) {
-	callback := r.FormValue("callback")
-	sanitizedCallback := nonAlphaNumeric.ReplaceAll([]byte(callback), []byte(""))
+func disallowedRenderJSON(r *http.Request, data *clientInfo) ([]byte, int, string, string, error) {
+	//callback := r.FormValue("callback")
+	//sanitizedCallback := nonAlphaNumeric.ReplaceAll([]byte(callback), []byte(""))
 
-	if len(sanitizedCallback) != 0 {
-		body := []byte(fmt.Sprintf("%s(%s);", sanitizedCallback, disallowedOriginBody))
-		// Browsers won't run this code unless the status is OK.
-		return body, http.StatusOK, "application/javascript", nil
+	//if len(sanitizedCallback) != 0 {
+	//	body := []byte(fmt.Sprintf("%s(%s);", sanitizedCallback, disallowedOriginBody))
+	//	// Browsers won't run this code unless the status is OK.
+	//	return body, http.StatusOK, "application/javascript", nil
 
-	}
-	return disallowedOriginBody, http.StatusBadRequest, "application/json", nil
+	//}
+	return disallowedOriginBody, http.StatusBadRequest, "application/json", "", nil
 }
 
-func allowedRenderJSON(r *http.Request, data *clientInfo) ([]byte, int, string, error) {
-	callback := r.FormValue("callback")
-	sanitizedCallback := nonAlphaNumeric.ReplaceAll([]byte(callback), []byte(""))
+func allowedRenderJSON(r *http.Request, data *clientInfo) ([]byte, int, string, string, error) {
+	//callback := r.FormValue("callback")
+	//sanitizedCallback := nonAlphaNumeric.ReplaceAll([]byte(callback), []byte(""))
 
-	marshalled, err := json.Marshal(data)
+	marshalled, err := json.MarshalIndent(data, "", "    ")
 	if err != nil {
-		return nil, 0, htmlContentType, err
+		return nil, 0, htmlContentType, "", err
 	}
-	if len(sanitizedCallback) > 0 {
-		return []byte(fmt.Sprintf("%s(%s);", sanitizedCallback, marshalled)), http.StatusOK, "application/javascript", nil
-	}
+	//if len(sanitizedCallback) > 0 {
+	//	return []byte(fmt.Sprintf("%s(%s);", sanitizedCallback, marshalled)), http.StatusOK, "application/javascript", nil
+	//}
 
-	return marshalled, http.StatusOK, "application/json", nil
+        // Compute and attach signature
+        hash := hmac.New(sha256.New, []byte(*hmacSecret))
+        hash.Write([]byte(marshalled))
+        sha := base64.StdEncoding.EncodeToString(hash.Sum(nil))
+
+	return marshalled, http.StatusOK, "application/json", sha, nil
 }
 
 func handleWeb(w http.ResponseWriter, r *http.Request) {
@@ -300,7 +303,7 @@ var (
 	// other checks, so we have that 0 in there. The "Err" is intentionally 3
 	// characters long to avoid anyone parsing it by character count. (We've not
 	// seen that 3 char check, but I can imagine it.)
-	disallowedOriginBody = []byte(`{"error": "See tls_version for the sign up link", "tls_version": "Err 0 The website calling howsmyssl.com's API has been making many calls and does not have a subscription. See https://subscriptions.howsmyssl.com/signup for how to get one."}`)
+	disallowedOriginBody = []byte(`{"error": "See tls_version for the sign up link", "tls_version": "Err 0 The website calling tls.support's API has been making many calls and does not have a subscription. See https://tls.support/ for more information."}`)
 )
 
 type apiHandler struct {
@@ -311,6 +314,7 @@ func (ah *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	apiRequests.Add(1)
 
 	detectedDomain, ok := ah.oa.Allow(r)
+	ok = true
 
 	renderJSON := allowedRenderJSON
 	if ok {
@@ -323,7 +327,7 @@ func (ah *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hijackHandle(w, r, apiStatuses, renderJSON)
 }
 
-func hijackHandle(w http.ResponseWriter, r *http.Request, statuses *statusStats, render func(*http.Request, *clientInfo) ([]byte, int, string, error)) {
+func hijackHandle(w http.ResponseWriter, r *http.Request, statuses *statusStats, render func(*http.Request, *clientInfo) ([]byte, int, string, string, error)) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		log.Printf("server not hijackable\n")
@@ -346,7 +350,15 @@ func hijackHandle(w http.ResponseWriter, r *http.Request, statuses *statusStats,
 		return
 	}
 	data := pullClientInfo(tc)
-	bs, status, contentType, err := render(r, data)
+
+	// Compute and attach signature
+	//data.SignatureId = ksuid.New().String()
+	//hash := hmac.New(sha256.New, []byte(*hmacSecret))
+	//hash.Write([]byte(data.SignatureId))
+	//sha := base64.StdEncoding.EncodeToString(hash.Sum(nil))
+	//data.Signature = sha
+
+	bs, status, contentType, signature, err := render(r, data)
 	if err != nil {
 		log.Printf("Unable to execute render: %s\n", err)
 		hijacked500(brw, r.ProtoMinor, statuses)
@@ -354,7 +366,7 @@ func hijackHandle(w http.ResponseWriter, r *http.Request, statuses *statusStats,
 	}
 	contentLength := int64(len(bs))
 	h := make(http.Header)
-	defaultResponseHeaders(h, r, contentType)
+	defaultResponseHeaders(h, r, contentType, signature)
 	resp := &http.Response{
 		StatusCode:    status,
 		ContentLength: contentLength,
@@ -374,15 +386,19 @@ func hijackHandle(w http.ResponseWriter, r *http.Request, statuses *statusStats,
 	brw.Flush()
 }
 
-func defaultResponseHeaders(h http.Header, r *http.Request, contentType string) {
+func defaultResponseHeaders(h http.Header, r *http.Request, contentType string, signature string) {
 	h.Set("Date", time.Now().Format(http.TimeFormat))
 	h.Set("Content-Type", contentType)
+	h.Set("X-Response-Signature", signature)
 	if r.ProtoMajor == 1 && r.ProtoMinor == 1 {
 		h.Set("Connection", "close")
 	}
 	h.Set("Strict-Transport-Security", hstsHeaderValue)
 	// Allow CORS requests from any domain, for easy API access
 	h.Set("Access-Control-Allow-Origin", "*")
+	h.Set("Access-Control-Allow-Headers", "X-Response-Signature, Content-Type")
+	h.Set("Access-Control-Expose-Headers", "X-Response-Signature, Content-Type")
+	h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
 
 }
 func hijacked500(brw *bufio.ReadWriter, protoMinor int, statuses *statusStats) {
@@ -473,8 +489,8 @@ func makeStaticHandler(dir string, vars *expvar.Map) http.HandlerFunc {
 func ratingSpan(r rating) template.HTML {
 	class := ""
 	switch r {
-	case okay:
-		class = "okay"
+	case good:
+		class = "good"
 	case improvable:
 		class = "improvable"
 	case bad:

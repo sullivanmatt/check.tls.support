@@ -1,12 +1,14 @@
 package main
 
 var (
-	fewBitReason   = "uses keys smaller than 128 bits in its encryption"
-	nullReason     = "specifies no encryption at all for the connection"
-	nullAuthReason = "is open to man-in-the-middle attacks because it does not authenticate the server"
-	weirdNSSReason = "was meant to die with SSL 3.0 and is of unknown safety"
-	rc4Reason      = "uses RC4 which has insecure biases in its output"
-	sweet32Reason  = "uses 3DES which is vulnerable to the Sweet32 attack but was not configured as a fallback in the ciphersuite order"
+	fewBitReason      = "The cipher uses broken encryption algorithms."
+	nullReason        = "The cipher specifies that no encryption should be used on the connection, therefore the cipher provides no data confidentiality."
+	nullAuthReason    = "The cipher specifies that no authentication should be used on the connection, therefore the cipher provides no data integrity guarantees."
+	//weirdNSSReason  = "was meant to die with SSL 3.0 and is of unknown safety."
+	rc4Reason         = "The cipher uses the broken RC4 encryption algorithm."
+	sweet32Reason     = "The cipher uses the broken 3DES encryption algorithm in a way that makes it highly vulnerable to the Sweet32 attack."
+	cbcReason         = "The cipher uses cipher block chaining (CBC) mode, which is often implemented improperly, leading to padding oracle attacks."
+	noEphemeralReason = "The cipher does not support ephemeral keys. Use of ephemeral keys greatly improves data confidentiality by generating keys that only last for the duration of the connection."
 )
 
 // Cipher suites with less than 128-bit encryption.
@@ -27,8 +29,6 @@ var (
 //   TLS_DHE_DSS_EXPORT1024_WITH_DES_CBC_SHA 56-bit encryption, export grade
 //   TLS_RSA_EXPORT1024_WITH_RC4_56_SHA      56-bit encryption, export grade
 //   TLS_DHE_DSS_EXPORT1024_WITH_RC4_56_SHA  56-bit encryption, export grade
-//
-// Plus a few more found in https://github.com/sullivanmatt/howsmyssl/issues/56:
 //
 //   TLS_RSA_EXPORT1024_WITH_RC4_56_MD5      56-bit encryption, export grade
 //   TLS_RSA_EXPORT1024_WITH_RC2_CBC_56_MD5  56-bit encryption, export grade
@@ -190,6 +190,7 @@ var sweet32CipherSuites = map[string]bool{
 // https://groups.google.com/forum/#!topic/mozilla.dev.tech.crypto/oWk0FkKsek4
 // and
 // http://www-archive.mozilla.org/projects/security/pki/nss/ssl/fips-ssl-ciphersuites.html
+
 var weirdNSSSuites = map[uint16]string{
 	0xFEFE: "SSL_RSA_FIPS_WITH_DES_CBC_SHA",
 	0xFEFF: "SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA",

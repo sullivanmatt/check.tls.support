@@ -29,6 +29,9 @@ github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
 # github.com/googleapis/gax-go/v2 v2.0.5
 github.com/googleapis/gax-go/v2
+# github.com/segmentio/ksuid v1.0.4
+## explicit
+github.com/segmentio/ksuid
 # go.opencensus.io v0.23.0
 go.opencensus.io
 go.opencensus.io/internal
