@@ -351,13 +351,6 @@ func hijackHandle(w http.ResponseWriter, r *http.Request, statuses *statusStats,
 	}
 	data := pullClientInfo(tc)
 
-	// Compute and attach signature
-	//data.SignatureId = ksuid.New().String()
-	//hash := hmac.New(sha256.New, []byte(*hmacSecret))
-	//hash.Write([]byte(data.SignatureId))
-	//sha := base64.StdEncoding.EncodeToString(hash.Sum(nil))
-	//data.Signature = sha
-
 	bs, status, contentType, signature, err := render(r, data)
 	if err != nil {
 		log.Printf("Unable to execute render: %s\n", err)
