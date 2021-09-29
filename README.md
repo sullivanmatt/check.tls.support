@@ -1,4 +1,4 @@
-howsmyssl
+check.tls.support
 =========
 
 check.tls.support is the web service that drives the TLS detection mechanisms on [https://tls.support](https://tls.support).
