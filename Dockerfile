@@ -24,7 +24,13 @@ RUN chown -R www-data /go/src/github.com/sullivanmatt/check.tls.support && chown
 #RUN setcap cap_net_bind_service=+ep bin/check.tls.support
 #USER www-data
 
-CMD ["/bin/bash", "-c", "aws s3 cp s3://tls-support-prod/tls.support.cert /secrets/tls.crt && aws s3 cp s3://tls-support-prod/tls.support.key /secrets/tls.key; \
+CMD /bin/bash -c "\
+    # Update the Cloudflare DNS record
+    python3 /go/src/github.com/sullivanmatt/check.tls.support/cloudflare_dns_update.py && \
+    # Get the SSL certs
+    aws s3 cp s3://tls-support-prod/tls.support.cert /secrets/tls.crt && \
+    aws s3 cp s3://tls-support-prod/tls.support.key /secrets/tls.key && \
+    # Invoke the daemon
     check.tls.support \
     -httpsAddr=:443 \
     -httpAddr=:80 \
@@ -32,4 +38,4 @@ CMD ["/bin/bash", "-c", "aws s3 cp s3://tls-support-prod/tls.support.cert /secre
     -staticDir=/go/src/github.com/sullivanmatt/check.tls.support/static \
     -cert=/secrets/tls.crt \
     -key=/secrets/tls.key \
-    -hmacSecret=$HMACSECRET"]
+    -hmacSecret=\$HMACSECRET"
